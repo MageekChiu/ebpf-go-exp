@@ -1,0 +1,10 @@
+ebpf-go-exp
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.o
+!*_bpf*.o
+*.test
+*.out
