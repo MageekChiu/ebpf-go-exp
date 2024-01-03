@@ -51,8 +51,18 @@ struct {
 } pkt_count_map SEC(".maps"); 
 
 struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY); 
+    __type(key, __u32);
+    __type(value, __u64);
+    __uint(max_entries, 1);
+} tuple_num SEC(".maps");
+
+struct {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, MAX_MAP_ENTRIES);
+    // ring buff: map create: invalid argument (without BTF k/v)
+    // https://stackoverflow.com/questions/63415220/bpf-ring-buffer-invalid-argument-22
+    // (max_entries attribute in libbpf map definition). It has to be a multiple of a memory page (which is 4096 bytes at least on most popular platforms)
+	__uint(max_entries, 1 << 24);
 } events1 SEC(".maps");
 
 // Emit struct event's type info into the ELF's BTF so bpf2go
@@ -62,8 +72,6 @@ struct event {
 };
 const struct event *unused __attribute__((unused));
 // const struct event *unused = {0};
-
-__u32 *tuple_num = 0;;
 
 static __always_inline int parse_ip_src_addr(struct xdp_md *ctx, __u32 *ip_src_addr, __u16 *src_port) {
 	void *data = (void *)(long)ctx->data;
@@ -76,11 +84,12 @@ static __always_inline int parse_ip_src_addr(struct xdp_md *ctx, __u32 *ip_src_a
     if (eth->h_proto != bpf_htons(ETH_P_IP)){
         return 0;
     }
-
     struct iphdr *iph = data + sizeof(struct ethhdr);
     if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
         return 0;
     *ip_src_addr = (__u32)(iph->saddr);
+    // for debug, so we can find that problem is below, not above
+    // return 1;
 
     __u16 sport,dport;
     struct tcphdr *tcph;
@@ -104,6 +113,9 @@ static __always_inline int parse_ip_src_addr(struct xdp_md *ctx, __u32 *ip_src_a
     }
     *src_port = sport;
 
+    // bpf_printk("xdp parse %u:%u",*ip_src_addr,*src_port);
+    // for debug
+    // return 0;
     return 1;
 }
 
@@ -111,26 +123,38 @@ SEC("xdp")
 int count_packets(struct xdp_md *ctx) {
     __u32 ip;
     __u16 sport;
+    // bpf_printk("xdp");
 	if (!parse_ip_src_addr(ctx, &ip, &sport)){
 		goto done;
 	}
-    struct tuple key = {ip,sport};
+    bpf_printk("Process a packet of tuple from %u|%pI4n:%u|%u",ip,&ip,sport,bpf_ntohs(sport));
+    struct tuple key = {ip,bpf_ntohs(sport)};
 
 	__u32 *pkt_count = bpf_map_lookup_elem(&pkt_count_map, &key);
+    // // for debug
+	// return XDP_PASS; 
 	if (!pkt_count) {
 		__u32 init_pkt_count = 1;
-		bpf_map_update_elem(&pkt_count_map, &ip, &init_pkt_count, BPF_ANY);
-
-		__sync_fetch_and_add(tuple_num, 1);
-        if(*tuple_num %5 == 0){
-            struct event *e;
-            e = bpf_ringbuf_reserve(&events1, sizeof(struct event), 0);
-            if (e){
-                e->count = *tuple_num;
-                bpf_ringbuf_submit(e, 0);
+		bpf_map_update_elem(&pkt_count_map, &key, &init_pkt_count, BPF_ANY);
+        // // for debug
+        // return XDP_PASS;
+        __u32 key    = 0; 
+        __u64 *count = bpf_map_lookup_elem(&tuple_num, &key); 
+        if (count) { 
+            __sync_fetch_and_add(count, 1); 
+            // // for debug
+            // return XDP_PASS;
+            if(*count %5 == 0){
+                struct event *e;
+                e = bpf_ringbuf_reserve(&events1, sizeof(struct event), 0);
+                if (e){
+                    e->count = *count;
+                    bpf_ringbuf_submit(e, 0);
+                }
+            
             }
-           
         }
+        
 	} else {
 		__sync_fetch_and_add(pkt_count, 1);
 	}

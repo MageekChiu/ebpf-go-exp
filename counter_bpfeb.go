@@ -70,6 +70,7 @@ type counterProgramSpecs struct {
 type counterMapSpecs struct {
 	Events1     *ebpf.MapSpec `ebpf:"events1"`
 	PktCountMap *ebpf.MapSpec `ebpf:"pkt_count_map"`
+	TupleNum    *ebpf.MapSpec `ebpf:"tuple_num"`
 }
 
 // counterObjects contains all objects after they have been loaded into the kernel.
@@ -93,12 +94,14 @@ func (o *counterObjects) Close() error {
 type counterMaps struct {
 	Events1     *ebpf.Map `ebpf:"events1"`
 	PktCountMap *ebpf.Map `ebpf:"pkt_count_map"`
+	TupleNum    *ebpf.Map `ebpf:"tuple_num"`
 }
 
 func (m *counterMaps) Close() error {
 	return _CounterClose(
 		m.Events1,
 		m.PktCountMap,
+		m.TupleNum,
 	)
 }
 

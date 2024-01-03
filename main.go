@@ -17,6 +17,13 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
+/*
+*
+go generate && go build && sudo ./ebpf-go-exp
+sudo openresty
+curl localhost:8080
+sudo bpftool prog tracelog
+*/
 func main() {
 	// // Remove resource limits for kernels <5.11.
 	// if err := rlimit.RemoveMemlock(); err != nil {
@@ -30,7 +37,8 @@ func main() {
 	}
 	defer objs.Close()
 
-	ifname := "enp0s1" // Change this to an interface on your machine.
+	// ifname := "enp0s1"
+	ifname := "lo"
 	iface, err := net.InterfaceByName(ifname)
 	if err != nil {
 		log.Fatalf("Getting interface %s: %s", ifname, err)
@@ -91,7 +99,13 @@ func main() {
 			sourceIP := key.Addr
 			sourcePort := key.Port
 			packetCount := val
-			log.Printf("%d:%d => %d\n", sourceIP, sourcePort, packetCount)
+			log.Printf("%d/%s:%d => %d\n", sourceIP, int2ip(sourceIP), sourcePort, packetCount)
 		}
 	}
+}
+
+func int2ip(nn uint32) net.IP {
+	ip := make(net.IP, 4)
+	binary.LittleEndian.PutUint32(ip, nn)
+	return ip
 }
