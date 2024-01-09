@@ -68,7 +68,7 @@ type counterProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type counterMapSpecs struct {
-	Events1     *ebpf.MapSpec `ebpf:"events1"`
+	Events      *ebpf.MapSpec `ebpf:"events"`
 	PktCountMap *ebpf.MapSpec `ebpf:"pkt_count_map"`
 	TupleNum    *ebpf.MapSpec `ebpf:"tuple_num"`
 }
@@ -92,14 +92,14 @@ func (o *counterObjects) Close() error {
 //
 // It can be passed to loadCounterObjects or ebpf.CollectionSpec.LoadAndAssign.
 type counterMaps struct {
-	Events1     *ebpf.Map `ebpf:"events1"`
+	Events      *ebpf.Map `ebpf:"events"`
 	PktCountMap *ebpf.Map `ebpf:"pkt_count_map"`
 	TupleNum    *ebpf.Map `ebpf:"tuple_num"`
 }
 
 func (m *counterMaps) Close() error {
 	return _CounterClose(
-		m.Events1,
+		m.Events,
 		m.PktCountMap,
 		m.TupleNum,
 	)

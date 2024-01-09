@@ -20,9 +20,20 @@ import (
 /*
 *
 go generate && go build && sudo ./ebpf-go-exp
-sudo openresty
+
+bpftool prog tracelog
+
+openresty
 curl localhost:8080
+
+go generate && go build && sudo docker cp ebpf-go-exp mix1:/tmp/
 sudo bpftool prog tracelog
+
+sudo docker exec -it mix1 /bin/bash
+./ebpf-go-exp
+
+sudo docker exec -it mix2 /bin/bash
+curl 172.19.0.2:80
 */
 func main() {
 	// // Remove resource limits for kernels <5.11.
@@ -39,6 +50,8 @@ func main() {
 
 	// ifname := "enp0s1"
 	ifname := "lo"
+	// ifname := "veth9cc5cb1"
+	// ifname := "eth0"
 	iface, err := net.InterfaceByName(ifname)
 	if err != nil {
 		log.Fatalf("Getting interface %s: %s", ifname, err)
@@ -54,7 +67,7 @@ func main() {
 	}
 	defer link.Close()
 
-	rd, err := ringbuf.NewReader(objs.Events1)
+	rd, err := ringbuf.NewReader(objs.Events)
 	if err != nil {
 		log.Fatalf("opening ringbuf reader: %s", err)
 	}

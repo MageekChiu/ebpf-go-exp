@@ -63,7 +63,7 @@ struct {
     // https://stackoverflow.com/questions/63415220/bpf-ring-buffer-invalid-argument-22
     // (max_entries attribute in libbpf map definition). It has to be a multiple of a memory page (which is 4096 bytes at least on most popular platforms)
 	__uint(max_entries, 1 << 24);
-} events1 SEC(".maps");
+} events SEC(".maps");
 
 // Emit struct event's type info into the ELF's BTF so bpf2go
 // can generate a Go type from it.
@@ -73,7 +73,7 @@ struct event {
 const struct event *unused __attribute__((unused));
 // const struct event *unused = {0};
 
-static __always_inline int parse_ip_src_addr(struct xdp_md *ctx, __u32 *ip_src_addr, __u16 *src_port) {
+static __always_inline int parse_ip_src_addr(struct xdp_md *ctx, __u32 *ip_src_addr, __u16 *src_port, __u16 *dst_port) {
 	void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
     int pkt_sz = data_end - data;
@@ -112,6 +112,7 @@ static __always_inline int parse_ip_src_addr(struct xdp_md *ctx, __u32 *ip_src_a
         return 0;
     }
     *src_port = sport;
+    *dst_port = dport;
 
     // bpf_printk("xdp parse %u:%u",*ip_src_addr,*src_port);
     // for debug
@@ -123,19 +124,28 @@ SEC("xdp")
 int count_packets(struct xdp_md *ctx) {
     __u32 ip;
     __u16 sport;
+    __u16 dport;
     // bpf_printk("xdp");
-	if (!parse_ip_src_addr(ctx, &ip, &sport)){
+	if (!parse_ip_src_addr(ctx, &ip, &sport, &dport)){
 		goto done;
 	}
-    bpf_printk("Process a packet of tuple from %u|%pI4n:%u|%u",ip,&ip,sport,bpf_ntohs(sport));
-    struct tuple key = {ip,bpf_ntohs(sport)};
+    __u16 r_sport = bpf_ntohs(sport);
+    bpf_printk("Process a packet of tuple from %u|%pI4n:%u|%u",ip,&ip,sport,r_sport);
+    if(8080 != bpf_ntohs(dport)){
+        goto done;
+    }
+    // struct tuple key = {ip,r_sport};
+    struct tuple key;
+    __builtin_memset(&key,0,sizeof(key));
+    key.addr = ip;
+    key.port = sport;
 
 	__u32 *pkt_count = bpf_map_lookup_elem(&pkt_count_map, &key);
     // // for debug
 	// return XDP_PASS; 
 	if (!pkt_count) {
 		__u32 init_pkt_count = 1;
-		bpf_map_update_elem(&pkt_count_map, &key, &init_pkt_count, BPF_ANY);
+		bpf_map_update_elem(&pkt_count_map, &key, &init_pkt_count, BPF_NOEXIST);
         // // for debug
         // return XDP_PASS;
         __u32 key    = 0; 
@@ -144,17 +154,15 @@ int count_packets(struct xdp_md *ctx) {
             __sync_fetch_and_add(count, 1); 
             // // for debug
             // return XDP_PASS;
-            if(*count %5 == 0){
+            if(*count % 5 == 0){
                 struct event *e;
-                e = bpf_ringbuf_reserve(&events1, sizeof(struct event), 0);
+                e = bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
                 if (e){
                     e->count = *count;
                     bpf_ringbuf_submit(e, 0);
                 }
-            
             }
         }
-        
 	} else {
 		__sync_fetch_and_add(pkt_count, 1);
 	}
