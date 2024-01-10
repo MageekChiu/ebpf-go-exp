@@ -134,11 +134,17 @@ int count_packets(struct xdp_md *ctx) {
     if(8080 != bpf_ntohs(dport)){
         goto done;
     }
-    // struct tuple key = {ip,r_sport};
-    struct tuple key;
-    __builtin_memset(&key,0,sizeof(key));
-    key.addr = ip;
-    key.port = sport;
+    struct tuple key = {ip,r_sport};
+    // struct tuple key;
+    // __builtin_memset(&key,0,sizeof(key));
+    // key.addr = ip;
+    // key.port = r_sport;
+
+    char serialized[sizeof(struct tuple)];
+    __builtin_memcpy(serialized, &key, sizeof(struct tuple));
+    for (int i = 0; i < sizeof(struct tuple); i++) {
+        bpf_printk("0x%x ",serialized[i]);
+    }
 
 	__u32 *pkt_count = bpf_map_lookup_elem(&pkt_count_map, &key);
     // // for debug

@@ -7,11 +7,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"unsafe"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
@@ -25,6 +28,8 @@ bpftool prog tracelog
 
 openresty
 curl localhost:8080
+curl localhost:8080 --local-port 4000-4200
+curl localhost:8080 --local-port 4000-4000
 
 go generate && go build && sudo docker cp ebpf-go-exp mix1:/tmp/
 sudo bpftool prog tracelog
@@ -109,13 +114,36 @@ func main() {
 		)
 		iter := objs.PktCountMap.Iterate()
 		for iter.Next(&key, &val) {
+			const sz = int(unsafe.Sizeof(counterTuple{}))
+			var asByteSlice []byte = (*(*[sz]byte)(unsafe.Pointer(&key)))[:]
+
+			var sb strings.Builder // Print a newline after printing the byte array
+			for _, b := range asByteSlice {
+				// fmt.Printf("0x%x ", b) // Prints each byte in hexadecimal format
+				sb.WriteString(fmt.Sprintf("0x%x ", b))
+			}
+			// fmt.Println()
+
 			sourceIP := key.Addr
 			sourcePort := key.Port
 			packetCount := val
-			log.Printf("%d/%s:%d => %d\n", sourceIP, int2ip(sourceIP), sourcePort, packetCount)
+			log.Printf("%d/%s:%d(%s) => %d\n", sourceIP, int2ip(sourceIP), sourcePort, sb.String(), packetCount)
 		}
 	}
 }
+
+// func structToBinaryString(data counterTuple) string {
+// 	buf := make([]byte, binary.Size(data))
+// 	binary.LittleEndian.PutUint16(buf[0:4], uint16(data.Addr))
+// 	binary.LittleEndian.PutUint16(buf[4:6], uint16(data.Port))
+// 	copy(buf[6:], data._[:])
+// 	var binaryStr strings.Builder
+// 	for _, b := range buf {
+// 		binaryStr.WriteString(fmt.Sprintf("%08b", b))
+// 	}
+
+// 	return binaryStr.String()
+// }
 
 func int2ip(nn uint32) net.IP {
 	ip := make(net.IP, 4)
