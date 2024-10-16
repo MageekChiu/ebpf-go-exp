@@ -40,7 +40,7 @@ sudo docker exec -it mix1 /bin/bash
 sudo docker exec -it mix2 /bin/bash
 curl 172.19.0.2:80
 */
-func main() {
+func main1() {
 	// // Remove resource limits for kernels <5.11.
 	// if err := rlimit.RemoveMemlock(); err != nil {
 	// 	log.Fatal("Removing memlock:", err)
