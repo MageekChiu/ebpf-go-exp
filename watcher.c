@@ -43,6 +43,12 @@ struct event_data {
 
 const struct event_data *unused __attribute__((unused));
 
+// struct bpf_map_def SEC("maps") optval_map = {
+//     .type = BPF_MAP_TYPE_ARRAY,
+//     .max_entries = 1,
+//     .value_size = 2048, // 假设最大数据长度为2048字节
+// };
+
 /*
 
 // 追踪 sendmsg 调用，过滤 netlink 消息
@@ -76,12 +82,27 @@ int BPF_KPROBE(netlink_sendmsg, struct socket *sock, struct msghdr *msg, size_t 
 
 // /sys/kernel/debug/tracing/events/syscalls/sys_enter_setsockopt/enable
 // 捕获 tracepoint 的 setsockopt 系统调用入口
+// /sys/kernel/debug/tracing/events/syscalls/sys_enter_setsockopt/format
+// parameter 
 SEC("tracepoint/syscalls/sys_enter_setsockopt")
 int tracepoint_setsockopt(struct trace_event_raw_sys_enter *ctx) {
     int fd = ctx->args[0];       // 文件描述符
     int level = ctx->args[1];    // 协议层级
     int optname = ctx->args[2];  // 选项名
     int optlen = ctx->args[4];   // 选项长度
+
+    // too much stack size, should use map
+    // char buffer[2046]; 
+    // char buffer[128]; 
+    // 获取指向 map 的键
+    // int key = 0;
+    // char *optval = ctx->args[3] ; 
+    // // char __user *optval = (char __user *)ctx->args[3]; // optval
+    // if (bpf_probe_read_user(buffer, optlen, optval) == 0) {
+    //     bpf_printk("Stored optval in map: %s\n", buffer);
+    // } else {
+    //     bpf_printk("Failed to read optval content from user space\n");
+    // }
 
 // // BPF_KPROBE supports up to five parameters, so we can't get the rest
 // SEC("kprobe/__sys_setsockopt")
@@ -100,8 +121,8 @@ int tracepoint_setsockopt(struct trace_event_raw_sys_enter *ctx) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid();
 
-    bpf_printk("setsockopt called: pid=%d, sockfd=%d, level=%d, optname=%d, optlen=%d"
-        , pid, fd,level, optname, optlen);
+    // bpf_printk("setsockopt called: pid=%d, sockfd=%d, level=%d, optname=%d, optlen=%d"
+        // , pid, fd,level, optname, optlen);
     // 只对 level == SOL_NETFILTER 的 setsockopt 进行监控
     if (level == SOL_IP && optname == IPT_SO_SET_REPLACE) {
         // 记录一些信息，比如进程 ID
@@ -111,7 +132,15 @@ int tracepoint_setsockopt(struct trace_event_raw_sys_enter *ctx) {
         if (!data) {
             return 0;
         }
-       
+        
+        bpf_printk("ctx->args[3]: %p\n", (void *)ctx->args[3]);
+        char buffer[256]; // 假设你知道将要读取的大小
+        if (bpf_probe_read_user(buffer, 256, (void *)ctx->args[3]) == 0) {
+            bpf_printk("Data at ctx->args[3]: %s\n", buffer);
+        } else {
+            bpf_printk("Failed to read data from ctx->args[3]\n");
+        }
+
         data->pid = pid;
         data->uid = uid;
 	    bpf_get_current_comm(&data->comm, TASK_COMM_LEN);
