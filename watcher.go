@@ -7,7 +7,9 @@ import (
     "os"
     "errors"
     "os/signal"
+	"os/user"
     "syscall"
+	"strconv"
 	"log"
     "bytes"
 	"encoding/binary"
@@ -46,7 +48,12 @@ func main() {
 	// defer kp.Close()
 
      // Attach the eBPF program to the tracepoint for sys_enter_setsockopt
-     tp, err := link.Tracepoint("syscalls", "sys_enter_setsockopt", objects.TracepointSetsockopt, nil)
+    //  tp, err := link.Tracepoint("syscalls", "sys_enter_setsockopt", objects.TracepointSetsockopt, nil)
+    //  if err != nil {
+    //      log.Fatalf("failed to attach tracepoint: %v", err)
+    //  }
+    //  defer tp.Close()
+	 tp, err := link.Tracepoint("syscalls", "sys_enter_unlinkat", objects.TracepointUnlinkat, nil)
      if err != nil {
          log.Fatalf("failed to attach tracepoint: %v", err)
      }
@@ -92,7 +99,13 @@ func main() {
 			continue
 		}
 
-		log.Printf("pid: %d\tcomm: %s\n", event.Pid, unix.ByteSliceToString(event.Comm[:]))
+		 // 获取用户信息
+		 usr, err := user.LookupId(strconv.FormatUint(uint64(event.Uid), 10))
+		 if err != nil {
+			log.Printf("getting user error: %s", err)
+		 }
+
+		log.Printf("pid: %d\tuser: %s\tcomm: %s\tpath: %s\n", event.Pid, usr.Name, unix.ByteSliceToString(event.Comm[:]),unix.ByteSliceToString(event.Path[:]))
 	}
  
 

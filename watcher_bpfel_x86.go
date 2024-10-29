@@ -15,7 +15,8 @@ import (
 type watcherEventData struct {
 	Pid  uint32
 	Uid  uint32
-	Comm [16]uint8
+	Comm [32]uint8
+	Path [256]uint8
 }
 
 // loadWatcher returns the embedded CollectionSpec for watcher.
@@ -60,6 +61,7 @@ type watcherSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type watcherProgramSpecs struct {
 	TracepointSetsockopt *ebpf.ProgramSpec `ebpf:"tracepoint_setsockopt"`
+	TracepointUnlinkat   *ebpf.ProgramSpec `ebpf:"tracepoint_unlinkat"`
 }
 
 // watcherMapSpecs contains maps before they are loaded into the kernel.
@@ -102,11 +104,13 @@ func (m *watcherMaps) Close() error {
 // It can be passed to loadWatcherObjects or ebpf.CollectionSpec.LoadAndAssign.
 type watcherPrograms struct {
 	TracepointSetsockopt *ebpf.Program `ebpf:"tracepoint_setsockopt"`
+	TracepointUnlinkat   *ebpf.Program `ebpf:"tracepoint_unlinkat"`
 }
 
 func (p *watcherPrograms) Close() error {
 	return _WatcherClose(
 		p.TracepointSetsockopt,
+		p.TracepointUnlinkat,
 	)
 }
 

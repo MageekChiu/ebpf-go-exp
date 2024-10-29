@@ -14,6 +14,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
+// #include <pwd.h>
 
 #define AF_NETLINK	16
 
@@ -32,16 +33,64 @@ struct {
 } events SEC(".maps");
 
 #ifndef TASK_COMM_LEN
-#define TASK_COMM_LEN 16
+#define TASK_COMM_LEN 32
+#define PATH_LEN 256
 #endif
 
 struct event_data {
     u32 pid;
     u32 uid;
 	u8 comm[TASK_COMM_LEN];
+	u8 path[PATH_LEN];
 };
 
 const struct event_data *unused __attribute__((unused));
+
+#define AT_FDCWD		-100 
+#define AT_REMOVEDIR		0x200
+
+SEC("tracepoint/syscalls/sys_enter_unlinkat")
+int tracepoint_unlinkat(struct trace_event_raw_sys_enter *ctx) {
+    int dfd = ctx->args[0];       
+    const char * pathname = (char *)ctx->args[1];    
+    int flag = ctx->args[2];  
+    
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    // getent passwd 1000
+    // id -nu 1000
+    // awk -F: -v uid=1000 '$3 == uid {print $1}' /etc/passwd
+    u32 uid = bpf_get_current_uid_gid();
+    // can not do this in kernel space but in user space
+    // struct passwd *pw; // 
+    // pw = getpwuid(uid);
+    // if (pw == NULL) {
+    //     bpf_printk("Failed to get user\n");
+    // }else{
+    //     bpf_printk("Username: %s\n", pw->pw_name);
+    // }
+
+    struct event_data *data;
+
+    data = bpf_ringbuf_reserve(&events, sizeof(struct event_data), 0);
+    if (!data) {
+        return 0;
+    }
+
+    if (bpf_probe_read_user(data->path, PATH_LEN, pathname) == 0) {
+        bpf_printk("Data at pathname: %s\n", data->path);
+    } else {
+        bpf_printk("Failed to read data from pathname\n");
+    }
+
+    data->pid = pid;
+    data->uid = uid;
+    bpf_get_current_comm(&data->comm, TASK_COMM_LEN);
+    bpf_printk("unlinkat called: pid=%d,uid=%d, dfd=%d, pathname=%d, flag=%d\n", pid, uid, dfd, pathname, flag);
+    bpf_ringbuf_submit(data, 0);
+
+    return 0;
+}
 
 // struct bpf_map_def SEC("maps") optval_map = {
 //     .type = BPF_MAP_TYPE_ARRAY,
