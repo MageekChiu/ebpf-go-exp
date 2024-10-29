@@ -48,21 +48,17 @@ const struct event_data *unused __attribute__((unused));
 
 #define AT_FDCWD		-100 
 #define AT_REMOVEDIR		0x200
+#define UNKNOW		-1
 
-SEC("tracepoint/syscalls/sys_enter_unlinkat")
-int tracepoint_unlinkat(struct trace_event_raw_sys_enter *ctx) {
-    int dfd = ctx->args[0];       
-    const char * pathname = (char *)ctx->args[1];    
-    int flag = ctx->args[2];  
-    
-
+__attribute__((always_inline)) 
+static int submit_event(const char *pathname, int dfd, int flag){
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     // getent passwd 1000
     // id -nu 1000
     // awk -F: -v uid=1000 '$3 == uid {print $1}' /etc/passwd
     u32 uid = bpf_get_current_uid_gid();
     // can not do this in kernel space but in user space
-    // struct passwd *pw; // 
+    // struct passwd *pw; //
     // pw = getpwuid(uid);
     // if (pw == NULL) {
     //     bpf_printk("Failed to get user\n");
@@ -90,8 +86,35 @@ int tracepoint_unlinkat(struct trace_event_raw_sys_enter *ctx) {
     bpf_ringbuf_submit(data, 0);
 
     return 0;
+} 
+
+// https://elixir.bootlin.com/linux/v6.6.5/source/fs/namei.c#L4280
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_rmdir/format
+SEC("tracepoint/syscalls/sys_enter_rmdir")
+int tracepoint_rmdir(struct trace_event_raw_sys_enter *ctx) {
+    const char * pathname = (char *)ctx->args[0];   
+    return submit_event(pathname, UNKNOW, AT_REMOVEDIR);
 }
 
+// https://elixir.bootlin.com/linux/v6.6.5/source/fs/namei.c#L4445
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_unlink/format
+SEC("tracepoint/syscalls/sys_enter_unlink")
+int tracepoint_unlink(struct trace_event_raw_sys_enter *ctx) {
+    const char * pathname = (char *)ctx->args[0]; 
+    return submit_event(pathname, UNKNOW, UNKNOW);
+}
+
+// touch 1.txt && rm -rf 1.txt
+// https://elixir.bootlin.com/linux/v6.6.5/source/fs/namei.c#L4435
+// cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_unlinkat/format
+SEC("tracepoint/syscalls/sys_enter_unlinkat")
+int tracepoint_unlinkat(struct trace_event_raw_sys_enter *ctx) {
+    int dfd = ctx->args[0];   //dirfd 要相对的目录的文件描述符。    
+    const char * pathname = (char *)ctx->args[1];    
+    int flag = ctx->args[2];
+
+    return submit_event(pathname, dfd, flag);
+}
 // struct bpf_map_def SEC("maps") optval_map = {
 //     .type = BPF_MAP_TYPE_ARRAY,
 //     .max_entries = 1,

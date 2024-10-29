@@ -53,11 +53,21 @@ func main() {
     //      log.Fatalf("failed to attach tracepoint: %v", err)
     //  }
     //  defer tp.Close()
-	 tp, err := link.Tracepoint("syscalls", "sys_enter_unlinkat", objects.TracepointUnlinkat, nil)
+	 tp, err := link.Tracepoint("syscalls", "sys_enter_rmdir", objects.TracepointRmdir, nil)
      if err != nil {
          log.Fatalf("failed to attach tracepoint: %v", err)
      }
      defer tp.Close()
+	 tp2, err := link.Tracepoint("syscalls", "sys_enter_unlink", objects.TracepointUnlink, nil)
+     if err != nil {
+         log.Fatalf("failed to attach tracepoint: %v", err)
+     }
+     defer tp2.Close()
+	 tp3, err := link.Tracepoint("syscalls", "sys_enter_unlinkat", objects.TracepointUnlinkat, nil)
+     if err != nil {
+         log.Fatalf("failed to attach tracepoint: %v", err)
+     }
+     defer tp3.Close()
 
 
     // Open a ringbuf reader from userspace RINGBUF map described in the

@@ -60,7 +60,9 @@ type watcherSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type watcherProgramSpecs struct {
+	TracepointRmdir      *ebpf.ProgramSpec `ebpf:"tracepoint_rmdir"`
 	TracepointSetsockopt *ebpf.ProgramSpec `ebpf:"tracepoint_setsockopt"`
+	TracepointUnlink     *ebpf.ProgramSpec `ebpf:"tracepoint_unlink"`
 	TracepointUnlinkat   *ebpf.ProgramSpec `ebpf:"tracepoint_unlinkat"`
 }
 
@@ -103,13 +105,17 @@ func (m *watcherMaps) Close() error {
 //
 // It can be passed to loadWatcherObjects or ebpf.CollectionSpec.LoadAndAssign.
 type watcherPrograms struct {
+	TracepointRmdir      *ebpf.Program `ebpf:"tracepoint_rmdir"`
 	TracepointSetsockopt *ebpf.Program `ebpf:"tracepoint_setsockopt"`
+	TracepointUnlink     *ebpf.Program `ebpf:"tracepoint_unlink"`
 	TracepointUnlinkat   *ebpf.Program `ebpf:"tracepoint_unlinkat"`
 }
 
 func (p *watcherPrograms) Close() error {
 	return _WatcherClose(
+		p.TracepointRmdir,
 		p.TracepointSetsockopt,
+		p.TracepointUnlink,
 		p.TracepointUnlinkat,
 	)
 }
